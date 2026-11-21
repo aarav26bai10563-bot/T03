@@ -1,0 +1,284 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidWaterbody(data) {
+      return data.keys().hasAll([
+        'id', 'ownerId', 'name', 'alternative_names', 'entry_type',
+        'waterbody_category', 'state', 'district', 'country',
+        'latitude', 'longitude', 'historical_area', 'recent_area',
+        'estimated_area_loss', 'monitoring_status', 'verification_status',
+        'data_source', 'historicalPeriod', 'recentPeriod', 'resolutionNote',
+        'createdAt', 'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'id', 'ownerId', 'name', 'alternative_names', 'entry_type',
+        'waterbody_category', 'state', 'district', 'country',
+        'latitude', 'longitude', 'historical_area', 'recent_area',
+        'estimated_area_loss', 'monitoring_status', 'verification_status',
+        'data_source', 'historicalPeriod', 'recentPeriod', 'resolutionNote',
+        'createdAt', 'updatedAt'
+      ])
+      && isValidId(data.id)
+      && isValidId(data.ownerId)
+      && data.name is string && data.name.size() >= 1 && data.name.size() <= 160
+      && data.alternative_names is list && data.alternative_names.size() <= 10
+      && (data.alternative_names.size() == 0 || data.alternative_names[0] is string)
+      && data.entry_type in ['named_waterbody', 'traditional_term']
+      && data.waterbody_category in [
+        'Natural lake',
+        'Natural pond',
+        'Village pond',
+        'Reservoir',
+        'Wetland',
+        'Temple pond',
+        'Agricultural pond',
+        'Irrigation tank',
+        'Traditional water structure',
+        'Other or unverified waterbody'
+      ]
+      && data.state is string && data.state.size() <= 80
+      && data.district is string && data.district.size() <= 80
+      && data.country is string && data.country.size() >= 2 && data.country.size() <= 40
+      && (
+        (data.latitude == null && data.longitude == null)
+        || (
+          data.entry_type == 'named_waterbody'
+          && data.latitude is number && data.latitude >= 5 && data.latitude <= 38
+          && data.longitude is number && data.longitude >= 68 && data.longitude <= 98
+        )
+      )
+      && (data.historical_area == null || (data.historical_area is number && data.historical_area >= 0 && data.historical_area <= 500000))
+      && (data.recent_area == null || (data.recent_area is number && data.recent_area >= 0 && data.recent_area <= 500000))
+      && (data.estimated_area_loss == null || (data.estimated_area_loss is number && data.estimated_area_loss >= -500000 && data.estimated_area_loss <= 500000))
+      && data.monitoring_status in [
+        'Stable',
+        'Watch',
+        'Moderate Loss',
+        'Severe Recession',
+        'Low Confidence',
+        'Unmonitored',
+        'Terminology Only'
+      ]
+      && data.verification_status in [
+        'Verified',
+        'Partially Verified',
+        'Unverified',
+        'Terminology Record'
+      ]
+      && data.data_source is string && data.data_source.size() > 0 && data.data_source.size() <= 120
+      && data.historicalPeriod is string && data.historicalPeriod.size() <= 60
+      && data.recentPeriod is string && data.recentPeriod.size() <= 60
+      && data.resolutionNote is string && data.resolutionNote.size() <= 360
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidObservation(data) {
+      return data.keys().hasAll([
+        'id', 'ownerId', 'waterbodyId', 'waterbodyName', 'observationDate',
+        'season', 'sensorSource', 'observedAreaHa', 'ndwiMean',
+        'cloudCoverPct', 'isHistoricalBaseline', 'notes', 'createdAt'
+      ])
+      && data.keys().hasOnly([
+        'id', 'ownerId', 'waterbodyId', 'waterbodyName', 'observationDate',
+        'season', 'sensorSource', 'observedAreaHa', 'ndwiMean',
+        'cloudCoverPct', 'isHistoricalBaseline', 'notes', 'createdAt'
+      ])
+      && isValidId(data.id)
+      && isValidId(data.ownerId)
+      && isValidId(data.waterbodyId)
+      && data.waterbodyName is string && data.waterbodyName.size() >= 1 && data.waterbodyName.size() <= 160
+      && data.observationDate is string && data.observationDate.size() >= 4 && data.observationDate.size() <= 32
+      && data.season in ['Pre-Monsoon', 'Monsoon', 'Post-Monsoon', 'Winter']
+      && data.sensorSource in ['Sentinel-2 Optical (Demo)', 'Sentinel-1 SAR (Demo)', 'JRC Historical (Demo)', 'Field Log']
+      && data.observedAreaHa is number && data.observedAreaHa >= 0 && data.observedAreaHa <= 500000
+      && data.ndwiMean is number && data.ndwiMean >= -1 && data.ndwiMean <= 1
+      && data.cloudCoverPct is number && data.cloudCoverPct >= 0 && data.cloudCoverPct <= 100
+      && data.isHistoricalBaseline is bool
+      && data.notes is string && data.notes.size() <= 500
+      && data.createdAt is timestamp;
+    }
+
+    function isValidAlert(data) {
+      return data.keys().hasAll([
+        'id', 'ownerId', 'waterbodyId', 'waterbodyName', 'state', 'district',
+        'severity', 'status', 'estimatedLossPct', 'seasonalComparisonNote',
+        'disclaimer', 'createdAt', 'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'id', 'ownerId', 'waterbodyId', 'waterbodyName', 'state', 'district',
+        'severity', 'status', 'estimatedLossPct', 'seasonalComparisonNote',
+        'disclaimer', 'createdAt', 'updatedAt'
+      ])
+      && isValidId(data.id)
+      && isValidId(data.ownerId)
+      && isValidId(data.waterbodyId)
+      && data.waterbodyName is string && data.waterbodyName.size() >= 1 && data.waterbodyName.size() <= 160
+      && data.state is string && data.state.size() <= 80
+      && data.district is string && data.district.size() <= 80
+      && data.severity in ['Low', 'Moderate', 'High', 'Critical']
+      && data.status in ['Active', 'Acknowledged', 'Resolved']
+      && data.estimatedLossPct is number && data.estimatedLossPct >= 0 && data.estimatedLossPct <= 100
+      && data.seasonalComparisonNote is string && data.seasonalComparisonNote.size() > 0 && data.seasonalComparisonNote.size() <= 400
+      && data.disclaimer is string && data.disclaimer.size() > 0 && data.disclaimer.size() <= 240
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    function isValidUserProfile(data) {
+      return data.keys().hasAll([
+        'uid', 'displayName', 'email', 'organization',
+        'preferredState', 'demoSeeded', 'createdAt', 'updatedAt'
+      ])
+      && data.keys().hasOnly([
+        'uid', 'displayName', 'email', 'organization',
+        'preferredState', 'demoSeeded', 'createdAt', 'updatedAt'
+      ])
+      && isValidId(data.uid)
+      && data.displayName is string && data.displayName.size() <= 120
+      && data.email is string && data.email.size() <= 160
+      && data.organization is string && data.organization.size() <= 120
+      && data.preferredState is string && data.preferredState.size() <= 80
+      && data.demoSeeded is bool
+      && data.createdAt is timestamp
+      && data.updatedAt is timestamp;
+    }
+
+    match /waterbodies/{waterbodyId} {
+      allow get: if isSignedIn() && isValidId(waterbodyId) && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerifiedUser()
+        && isValidId(waterbodyId)
+        && isValidWaterbody(incoming())
+        && incoming().id == waterbodyId
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(waterbodyId)
+        && isValidWaterbody(incoming())
+        && existing().ownerId == request.auth.uid
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().entry_type == existing().entry_type
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'alternative_names', 'waterbody_category', 'state', 'district',
+          'latitude', 'longitude', 'historical_area', 'recent_area',
+          'estimated_area_loss', 'monitoring_status', 'verification_status',
+          'recentPeriod', 'resolutionNote', 'updatedAt'
+        ]);
+      allow delete: if isVerifiedUser()
+        && isValidId(waterbodyId)
+        && existing().ownerId == request.auth.uid;
+    }
+
+    match /monitoringObservations/{observationId} {
+      allow get: if isSignedIn() && isValidId(observationId) && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerifiedUser()
+        && isValidId(observationId)
+        && isValidObservation(incoming())
+        && incoming().id == observationId
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/waterbodies/$(incoming().waterbodyId))
+        && get(/databases/$(database)/documents/waterbodies/$(incoming().waterbodyId)).data.ownerId == request.auth.uid;
+      allow update: if isVerifiedUser()
+        && isValidId(observationId)
+        && isValidObservation(incoming())
+        && existing().ownerId == request.auth.uid
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().waterbodyId == existing().waterbodyId
+        && incoming().createdAt == existing().createdAt
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'observedAreaHa', 'ndwiMean', 'cloudCoverPct', 'notes'
+        ]);
+      allow delete: if isVerifiedUser()
+        && isValidId(observationId)
+        && existing().ownerId == request.auth.uid;
+    }
+
+    match /alerts/{alertId} {
+      allow get: if isSignedIn() && isValidId(alertId) && existing().ownerId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isVerifiedUser()
+        && isValidId(alertId)
+        && isValidAlert(incoming())
+        && incoming().id == alertId
+        && incoming().ownerId == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/waterbodies/$(incoming().waterbodyId))
+        && get(/databases/$(database)/documents/waterbodies/$(incoming().waterbodyId)).data.ownerId == request.auth.uid;
+      allow update: if isVerifiedUser()
+        && isValidId(alertId)
+        && isValidAlert(incoming())
+        && existing().ownerId == request.auth.uid
+        && existing().status != 'Resolved'
+        && incoming().id == existing().id
+        && incoming().ownerId == existing().ownerId
+        && incoming().waterbodyId == existing().waterbodyId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (existing().status == 'Active' && incoming().status == 'Acknowledged' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+          || ((existing().status == 'Active' || existing().status == 'Acknowledged') && incoming().status == 'Resolved' && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt']))
+        );
+      allow delete: if isVerifiedUser()
+        && isValidId(alertId)
+        && existing().ownerId == request.auth.uid;
+    }
+
+    match /userProfiles/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+      allow list: if false;
+      allow create: if isVerifiedUser()
+        && isValidId(userId)
+        && request.auth.uid == userId
+        && isValidUserProfile(incoming())
+        && incoming().uid == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedUser()
+        && isValidId(userId)
+        && request.auth.uid == userId
+        && isValidUserProfile(incoming())
+        && incoming().uid == existing().uid
+        && incoming().email == existing().email
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'displayName', 'organization', 'preferredState', 'demoSeeded', 'updatedAt'
+        ]);
+      allow delete: if false;
+    }
+  }
+}

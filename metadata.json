@@ -1,0 +1,8 @@
+{
+  "name": "Remix Remix GHOST SHORELINE",
+  "description": "India\u0027s Vanishing Lakes \u0026 Ponds Monitoring System — geospatial environmental monitoring platform for tracking disappearing lakes, ponds, reservoirs, and wetlands across India.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
